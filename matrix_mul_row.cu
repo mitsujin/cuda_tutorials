@@ -8,17 +8,20 @@
 
 __global__ void matrixMul(float* iM, float* iN, float* oP, int width) {
 
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (col < width && row < width) {
-        float pValue = 0.0f;
-        for (int k = 0; k < width; k++)
+    if (row < width)
+    {
+        for (int col = 0; col < width; col++)
         {
-            pValue += iM[row*width+k] * iN[k*width+col];
-        }
+            float sum = 0;
+            for (int k = 0; k < width; k++)
+            {
+                sum += iM[row*width+k]*iN[k*width+col];
+            }
 
-        oP[row*width+col] = pValue;
+            oP[row*width+col] = sum;
+        }
     }
 }
 
@@ -38,8 +41,8 @@ int main() {
 
     for (int i = 0; i < N*N; i++)
     {
-        h_M[i] = 1.0f;
-        h_N[i] = 1.0f;
+        h_M[i] = i % N;
+        h_N[i] = (i+1) % N;
     }
 
     cudaMalloc((void**)&d_M, N*N*sizeof(float));
@@ -49,15 +52,15 @@ int main() {
     cudaMemcpy(d_M, h_M, N*N*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_N, h_N, N*N*sizeof(float), cudaMemcpyHostToDevice);
 
-    int block_size = 8;
+    int block_size = 2;
     int gridSizeX = (N + block_size-1) / block_size;
-    int gridSizeY = (N + block_size-1) / block_size;
-    printf("Grid size: %d, %d\n", gridSizeX, gridSizeY);
+    //int gridSizeY = (N + block_size-1) / block_size;
+    //printf("Grid size: %d, %d\n", gridSizeX, gridSizeY);
 
-    dim3 gridSize(gridSizeX, gridSizeY, 1);
-    dim3 blockSize(block_size, block_size, 1);
+    //dim3 gridSize(gridSizeX, gridSizeY, 1);
+    //dim3 blockSize(block_size, block_size, 1);
     
-    matrixMul<<<gridSize,blockSize>>>(d_M, d_N, d_P, N);
+    matrixMul<<<gridSizeX,block_size>>>(d_M, d_N, d_P, N);
 
     cudaMemcpy(h_P, d_P, N*N*sizeof(float), cudaMemcpyDeviceToHost);
 
