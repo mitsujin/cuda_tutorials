@@ -32,7 +32,15 @@ __global__ void colorToGrayScale(unsigned char* pOut, unsigned char* pIn, int wi
 
 int main() {
     PPMImage* image = readPPM("images/image.ppm");
+    if (image->data == NULL)
+    {
+        printf("Image is NULL!");
+        return 0;
+    }
+
     PPMImage* targetImage = (PPMImage*)malloc(sizeof(PPMImage));
+    int imageSize = CHANNELS * sizeof(unsigned char) * (image->width * image->height);
+
     targetImage->data = (unsigned char*)malloc(imageSize);
     targetImage->width = image->width;
     targetImage->height = image->height;
@@ -40,23 +48,27 @@ int main() {
     unsigned char* d_imageData = NULL;
     unsigned char* d_targetImageData = NULL;
 
-    int imageSize = CHANNELS * sizeof(unsigned char) * (image->width * image->height);
+    cudaMalloc((void**)&d_imageData, imageSize);
+    cudaMalloc((void**)&d_targetImageData, imageSize);
 
-    cudaMalloc(((void**)&d_imageData, size));
-    cudaMalloc(((void**)&d_targetImageData, size));
+    cudaMemcpy(d_imageData, image->data, imageSize, cudaMemcpyHostToDevice);
 
-    cudaMemcpy(d_imageData, image->data, size, cudaMemcpyHostToDevice);
-
-    int block_size = 256;
+    int block_size = 16;
     int gridSizeX = (image->width + block_size-1) / block_size;
     int gridSizeY = (image->height + block_size-1) / block_size;
+    printf("Grid size: %d, %d\n", gridSizeX, gridSizeY);
+
     dim3 gridSize(gridSizeX, gridSizeY, 1);
     dim3 blockSize(block_size, block_size, 1);
+    printf("Image size: %d, %d\n", image->width, image->height);
     
-    colorToGrayScale<<<grid_size,block_size>>>(d_targetImageData, d_imageData, image->width, image->height);
+    colorToGrayScale<<<gridSize,blockSize>>>(d_targetImageData, d_imageData, image->width, image->height);
 
     cudaMemcpy(targetImage->data, d_targetImageData, imageSize, cudaMemcpyDeviceToHost);
+    printf("targetImage->data %d\n", targetImage->data[0]);
+    
 
+    printf("writing images");
     writePPM("images/grayscale.ppm", targetImage);
 
     cudaFree(d_targetImageData);
